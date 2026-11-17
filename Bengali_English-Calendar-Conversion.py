@@ -1,4 +1,7 @@
 import sys
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+from datetime import datetime
 
 def gregorian_to_jdn(y, m, d):
     return (1461 * (y + 4800 + (m - 14) // 12)) // 4 \
@@ -378,32 +381,69 @@ def run_year_calendar_option():
         print("Invalid Sub-option choice.")
 
 
-if __name__ == "__main__":
-    while True:
-        print("\n=========================================================")
-        print("         Bengali - English Calendar Conversion System")
-        print("=========================================================")
-        print("1. Year-Calendar Generator")
-        print("2. Date Conversion (Gregorian <-> Bangla)")
-        print("3. Age / Date Difference Calculator")
-        print("4. Add / Subtract Days from a Date")
-        print("5. Exit System")
-        
-        try:
-            choice = int(input("Choose Option: "))
-        except ValueError:
-            print("Invalid input. Please enter a number.")
-            continue
-
-        if choice == 1:
-            run_year_calendar_option()
-        elif choice == 2:
-            run_merged_conversion_menu()
-        elif choice == 3:
-            run_age_calculator_option()
-        elif choice == 4:
-            run_add_subtract_days_option()
-        elif choice == 5:
-            break
+# ==========================================
+# NATIVE LOCAL HTTP API SERVER HANDLER
+# ==========================================
+class CalendarAPIHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/today" or self.path == "/":
+            now = datetime.now()
+            d, m, y = now.day, now.month, now.year
+            
+            bd, bm, by = get_bangla_date_details(d, m, y, 2)
+            day_of_week = get_day_of_week(d, m, y)
+            
+            response = {
+                "gregorian": f"{d:02d}-{m:02d}-{y}",
+                "bengali": f"{bd:02d} {bm}, {by} BS",
+                "day_of_week": day_of_week
+            }
+            
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(response).encode("utf-8"))
         else:
-            print("Invalid Option. Try again.")
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b"Endpoint not found. Use /today")
+
+def run_native_server():
+    server_address = ("127.0.0.1", 8000)
+    httpd = HTTPServer(server_address, CalendarAPIHandler)
+    print("Native Local API running at http://127.0.0.1:8000/today")
+    httpd.serve_forever()
+
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "server":
+        run_native_server()
+    else:
+        while True:
+            print("\n=========================================================")
+            print("         Bengali - English Calendar Conversion System")
+            print("=========================================================")
+            print("1. Year-Calendar Generator")
+            print("2. Date Conversion (Gregorian <-> Bangla)")
+            print("3. Age / Date Difference Calculator")
+            print("4. Add / Subtract Days from a Date")
+            print("5. Exit System")
+            
+            try:
+                choice = int(input("Choose Option: "))
+            except ValueError:
+                print("Invalid input. Please enter a number.")
+                continue
+
+            if choice == 1:
+                run_year_calendar_option()
+            elif choice == 2:
+                run_merged_conversion_menu()
+            elif choice == 3:
+                run_age_calculator_option()
+            elif choice == 4:
+                run_add_subtract_days_option()
+            elif choice == 5:
+                break
+            else:
+                print("Invalid Option. Try again.")
