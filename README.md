@@ -1,6 +1,6 @@
 # Bengali_English-Calendar-Conversion-2.0 (Bengali-English Universal Calendar System)
 
-A comprehensive Python-based calendar conversion engine designed to handle complex conversions, date arithmetic, seasonal metadata, and full-year grid generations across multiple historical and regional calendar systems, complete with a built-in local PC API server.
+A comprehensive Python-based calendar conversion engine designed to handle complex conversions, date arithmetic, seasonal metadata, and full-year grid generations across multiple historical and regional calendar systems.
 
 ## Features
 
@@ -25,22 +25,16 @@ Generates clean, properly aligned ASCII monthly calendar grids for a chosen year
 * **Bangla Year ➔ English Grid** 
 * **English Year ➔ English Grid**
 
-### 4. Local PC HTTP API Server
-* Instantly spins up a lightweight, zero-dependency local HTTP server (`127.0.0.1:8000`) to fetch real-time live Gregorian and Bengali date conversions in JSON format.
-
 ## Technical Highlights
 
 * **Absolute Julian Day Number (JDN) Bridge:** All date arithmetic and conversions are routed through the JDN, eliminating floating-point errors and complex leap-year edge cases.
-* **Zero External Dependencies:** Built entirely using Python's standard library (`http.server`, `json`, `datetime`, `typing`) requiring zero external package installations.
+* **Zero External Dependencies:** Built entirely using Python's standard library requiring zero external package installations.
 * **Mathematical Regional Models:** The India Traditional and Saha standards are handled using precise mathematical year-length models to ensure zero drift.
 * **Robust Input Validation:** Safely handles invalid dates and prevents crashes from unexpected text inputs.
 
 ## How to Run
 
-1. Ensure you have a modern version of Python installed (Python 3.11 or newer is recommended).
-2. Clone the repository or download the script file.
-3. Open your terminal or command prompt in the project directory and choose your execution mode:
+Execute the script directly via your terminal to access the interactive CLI menu:
 
-### Option A: Run the Interactive Terminal Menu
 ```bash
 python Bengali_English-Calendar-Conversion.py
