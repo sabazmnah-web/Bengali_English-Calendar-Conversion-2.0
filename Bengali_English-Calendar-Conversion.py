@@ -1,15 +1,36 @@
-import sys
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import json
-from datetime import datetime
+"""
+Bengali - English Calendar Conversion System
+A comprehensive utility to handle Gregorian, Julian, and various versions of the 
+Bengali calendar (incorporating Bangladesh 2019 reform rules, 1987-2018 rules, 
+and Indian Traditional/Saha variations).
+"""
 
-def gregorian_to_jdn(y, m, d):
+from typing import Tuple, List
+
+# Bengali Month Metadata (Romanizations and Seasons)
+BANGLA_MONTHS = [
+    "Boishakh", "Jyoishtho", "Asharh", "Shrabon", "Bhadro", "Ashshin",
+    "Kartik", "Ogrohayon", "Poush", "Magh", "Falgun", "Choitro"
+]
+
+BANGLA_SEASONS = [
+    "Grishshô (Summer)", "Grishshô (Summer)", 
+    "Bôrsha (Wet season/Monsoon)", "Bôrsha (Wet season/Monsoon)", 
+    "Shôrôd (Autumn)", "Shôrôd (Autumn)", 
+    "Hemonto (Dry season)", "Hemonto (Dry season)", 
+    "Sheet (Winter)", "Sheet (Winter)", 
+    "Bôsôntô (Spring)", "Bôsôntô (Spring)"
+]
+
+def gregorian_to_jdn(y: int, m: int, d: int) -> int:
+    """Convert a Gregorian date to Julian Day Number (JDN)."""
     return (1461 * (y + 4800 + (m - 14) // 12)) // 4 \
          + (367 * (m - 2 - 12 * ((m - 14) // 12))) // 12 \
          - (3 * ((y + 4900 + (m - 14) // 12) // 100)) // 4 \
          + d - 32075
 
-def jdn_to_gregorian(jdn):
+def jdn_to_gregorian(jdn: int) -> Tuple[int, int, int]:
+    """Convert a Julian Day Number (JDN) back to a Gregorian date (year, month, day)."""
     l = jdn + 68569
     n = (4 * l) // 146097
     l = l - (146097 * n + 3) // 4
@@ -22,15 +43,20 @@ def jdn_to_gregorian(jdn):
     y = 100 * (n - 49) + i + l
     return y, m, d
 
-def is_gregorian_leap(year):
-    if year % 400 == 0: return True
-    if year % 100 == 0: return False
+def is_gregorian_leap(year: int) -> bool:
+    """Check if a Gregorian year is a leap year."""
+    if year % 400 == 0:
+        return True
+    if year % 100 == 0:
+        return False
     return year % 4 == 0
 
-def is_julian_leap(year):
+def is_julian_leap(year: int) -> bool:
+    """Check if a Julian year is a leap year."""
     return year % 4 == 0
 
-def get_day_of_week(d, m, y):
+def get_day_of_week(d: int, m: int, y: int) -> str:
+    """Return the name of the day of the week for a given Gregorian date."""
     if m < 3: 
         m += 12
         y -= 1
@@ -39,59 +65,81 @@ def get_day_of_week(d, m, y):
     days = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
     return days[h]
 
-def get_day_of_week_num(d, m, y):
+def get_day_of_week_num(d: int, m: int, y: int) -> int:
+    """Return the numerical day of the week (0-6) for a given Gregorian date."""
     if m < 3: 
         m += 12
         y -= 1
     q, k, j = d, y % 100, y // 100
     return (q + 13 * (m + 1) // 5 + k + k // 4 + j // 4 + 5 * j) % 7
 
-def get_day_of_year(d, m, y):
+def get_day_of_year(d: int, m: int, y: int) -> int:
+    """Return the day number within the year for a Gregorian date."""
     m_len = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if is_gregorian_leap(y): m_len[2] = 29
+    if is_gregorian_leap(y):
+        m_len[2] = 29
     return sum(m_len[1:m]) + d
 
-def get_gregorian_from_day_of_year(doy, y):
+def get_gregorian_from_day_of_year(doy: int, y: int) -> Tuple[int, int]:
+    """Convert a day-of-year number back to day and month."""
     m_len = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if is_gregorian_leap(y): m_len[2] = 29
+    if is_gregorian_leap(y):
+        m_len[2] = 29
     m = 1
     while doy > m_len[m]:
         doy -= m_len[m]
         m += 1
     return doy, m
 
-def is_valid_gregorian_date(d, m, y):
-    if y < 1 or m < 1 or m > 12 or d < 1: return False
+def is_valid_gregorian_date(d: int, m: int, y: int) -> bool:
+    """Validate a Gregorian date."""
+    if y < 1 or m < 1 or m > 12 or d < 1:
+        return False
     m_len = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if is_gregorian_leap(y): m_len[2] = 29
+    if is_gregorian_leap(y):
+        m_len[2] = 29
     return d <= m_len[m]
 
-def get_bangla_month_lengths(by, version):
+def get_bangla_month_lengths(by: int, version: int) -> List[int]:
+    """
+    Calculate lengths of the 12 months of the Bengali calendar based on standards:
+    Version 1: Bangladesh (1966/1987-2018)
+    Version 2: Bangladesh (2019-present) -> First 6 months have 31 days (including Ashshin)[cite: 1]
+    Version 3: Traditional India
+    Version 4: India (Saha)
+    """
     b_lens = [0] * 12
-    if version == 3: # Traditional India
+    if version == 3:  # Traditional India
         base = [31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 30, 30]
-        for i in range(12): b_lens[i] = base[i]
-        if is_gregorian_leap(by + 594): b_lens[11] = 31
+        for i in range(12):
+            b_lens[i] = base[i]
+        if is_gregorian_leap(by + 594):
+            b_lens[11] = 31
     else:
         is_leap = is_gregorian_leap(by + 594)
-        if version in (1, 4): # BD old & India Saha
+        if version in (1, 4):  # BD old & India Saha
             base = [31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 30, 30]
-            for i in range(12): b_lens[i] = base[i]
-            if is_leap: b_lens[10] = 31
-        else: # BD modern 2019+
+            for i in range(12):
+                b_lens[i] = base[i]
+            if is_leap:
+                b_lens[10] = 31
+        else:  # BD modern (2019-present): Boishakh-Ashshin are 31 days each[cite: 1]
             base = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 29, 30]
-            for i in range(12): b_lens[i] = base[i]
-            if is_leap: b_lens[10] = 30
+            for i in range(12):
+                b_lens[i] = base[i]
+            if is_leap:
+                b_lens[10] = 30  # Falgun has 30 days in leap years
     return b_lens
 
-def get_bangla_date_details(d, m, y, ver):
-    b_months = ["Boishakh", "Jyoishtho", "Asharh", "Shrabon", "Bhadro", "Ashshin",
-                "Kartik", "Ogrohayon", "Poush", "Magh", "Falgun", "Choitro"]
+def get_bangla_date_details(d: int, m: int, y: int, ver: int) -> Tuple[int, str, int]:
+    """Convert a Gregorian date to a Bengali date details (day, month name, year)."""
     doy = get_day_of_year(d, m, y)
 
-    start_offset = 104
-    if ver == 3: start_offset = 105
-    if is_gregorian_leap(y): start_offset += 1
+    start_offset = 104  # Corresponds to April 14 for Boishakh 1[cite: 1]
+    if ver == 3:
+        start_offset = 105
+    if is_gregorian_leap(y):
+        start_offset += 1
 
     by = (y - 593) if (doy >= start_offset) else (y - 594)
 
@@ -109,15 +157,17 @@ def get_bangla_date_details(d, m, y, ver):
         rel_days -= b_lens[idx]
         idx += 1
         
-    return rel_days, b_months[idx], by
+    return rel_days, BANGLA_MONTHS[idx], by
 
-def bangla_to_gregorian(bd, bm_idx, by, ver):
+def bangla_to_gregorian(bd: int, bm_idx: int, by: int, ver: int) -> Tuple[int, int, int]:
+    """Convert a Bengali date to a Gregorian date (day, month, year)."""
     b_lens = get_bangla_month_lengths(by, ver)
     accumulated = sum(b_lens[:bm_idx]) + (bd - 1)
 
     start_offset = 105 if ver == 3 else 104
     gy = by + 593
-    if is_gregorian_leap(gy): start_offset += 1
+    if is_gregorian_leap(gy):
+        start_offset += 1
 
     doy = start_offset + accumulated
     total_days = 366 if is_gregorian_leap(gy) else 365
@@ -129,11 +179,13 @@ def bangla_to_gregorian(bd, bm_idx, by, ver):
     gd, gm = get_gregorian_from_day_of_year(doy, gy)
     return gd, gm, gy
 
-def add_days_to_date(d, m, y, delta):
+def add_days_to_date(d: int, m: int, y: int, delta: int) -> Tuple[int, int, int]:
+    """Add or subtract a number of days from a Gregorian date."""
     jdn = gregorian_to_jdn(y, m, d) + delta
     return jdn_to_gregorian(jdn)
 
-def date_difference(d1, m1, y1, d2, m2, y2):
+def date_difference(d1: int, m1: int, y1: int, d2: int, m2: int, y2: int) -> Tuple[int, int, int]:
+    """Calculate the precise difference in years, months, and days between two dates."""
     j1 = gregorian_to_jdn(y1, m1, d1)
     j2 = gregorian_to_jdn(y2, m2, d2)
     
@@ -155,7 +207,8 @@ def date_difference(d1, m1, y1, d2, m2, y2):
             prev_m = 12
             prev_y -= 1
         m_len = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        if is_gregorian_leap(prev_y): m_len[2] = 29
+        if is_gregorian_leap(prev_y):
+            m_len[2] = 29
         days += m_len[prev_m]
         
     if months < 0:
@@ -164,18 +217,21 @@ def date_difference(d1, m1, y1, d2, m2, y2):
 
     return years, months, days
 
-def print_julian_date(d, m, y):
+def print_julian_date(d: int, m: int, y: int) -> None:
+    """Print the Julian calendar equivalent date."""
     julian_days = gregorian_to_jdn(y, m, d) - 1721423
 
     julian_year = 1
     while True:
         diy = 366 if is_julian_leap(julian_year) else 365
-        if julian_days <= diy: break
+        if julian_days <= diy:
+            break
         julian_days -= diy
         julian_year += 1
 
     julian_months = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if is_julian_leap(julian_year): julian_months[2] = 29
+    if is_julian_leap(julian_year):
+        julian_months[2] = 29
 
     julian_month = 1
     while julian_days > julian_months[julian_month]:
@@ -185,13 +241,14 @@ def print_julian_date(d, m, y):
     month_names = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     print(f"{'Julian Date':<23}: {julian_days} {month_names[julian_month]} {julian_year}")
 
-def print_english_month_grid(month, year):
-    months = ["", "January", "February", "March", "April", "May", "June",
-              "July", "August", "September", "October", "November", "December"]
+def print_english_month_grid(month: int, year: int) -> None:
+    """Print a terminal calendar grid for an English month."""
+    months = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     m_len = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-    if is_gregorian_leap(year): m_len[2] = 29
+    if is_gregorian_leap(year):
+        m_len[2] = 29
 
-    print(f"\n      {months[month]} {year}")
+    print(f"\n       {months[month]} {year}")
     print("  S   M   T   W   T   F   S")
 
     start_day = get_day_of_week_num(1, month, year)
@@ -200,18 +257,19 @@ def print_english_month_grid(month, year):
     print("    " * spaces, end="")
     for day in range(1, m_len[month] + 1):
         print(f"{day:>3} ", end="")
-        if (day + spaces) % 7 == 0: print()
+        if (day + spaces) % 7 == 0:
+            print()
     print()
 
-def print_bangla_month_grid(b_month_idx, b_year, version):
-    b_months = ["Boishakh", "Jyoishtho", "Asharh", "Shrabon", "Bhadro", "Ashshin",
-                "Kartik", "Ogrohayon", "Poush", "Magh", "Falgun", "Choitro"]
-    print(f"\n      {b_months[b_month_idx]} {b_year} BS")
+def print_bangla_month_grid(b_month_idx: int, b_year: int, version: int) -> None:
+    """Print a terminal calendar grid for a Bengali month."""
+    print(f"\n       {BANGLA_MONTHS[b_month_idx]} {b_year} BS ({BANGLA_SEASONS[b_month_idx]})")
     print("  S   M   T   W   T   F   S")
 
     greg_year = b_year + 593
     base_doy = 105 if version == 3 else 104
-    if is_gregorian_leap(greg_year): base_doy += 1
+    if is_gregorian_leap(greg_year):
+        base_doy += 1
 
     b_lens = get_bangla_month_lengths(b_year, version)
     accumulated_days = sum(b_lens[:b_month_idx])
@@ -229,10 +287,12 @@ def print_bangla_month_grid(b_month_idx, b_year, version):
     print("    " * spaces, end="")
     for day in range(1, b_lens[b_month_idx] + 1):
         print(f"{day:>3} ", end="")
-        if (day + spaces) % 7 == 0: print()
+        if (day + spaces) % 7 == 0:
+            print()
     print()
 
-def convert_gregorian_to_bangla():
+def convert_gregorian_to_bangla() -> None:
+    """CLI prompt for Gregorian to Bangla conversion."""
     try:
         print("\nEnter Gregorian Date (DD MM YYYY): ", end="")
         d, m, y = map(int, input().split())
@@ -243,26 +303,27 @@ def convert_gregorian_to_bangla():
         print("Invalid input format.")
         return
 
-    m_names = ["", "January", "February", "March", "April", "May", "June",
-               "July", "August", "September", "October", "November", "December"]
-               
+    m_names = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+           
     print("\n================ DATE CONVERSION RESULTS ================")
     print(f"{'Gregorian Date':<23}: {d} {m_names[m]} {y}")
     print_julian_date(d, m, y)
     print(f"{'Day of the Week':<23}: {get_day_of_week(d, m, y)}")
     print("---------------------------------------------------------")
 
-    bd, bm, by = get_bangla_date_details(d, m, y, 1)
-    print(f"{'Bangla (BD 1987-2018)':<23}: {bd} {bm} {by} BS")
-    bd, bm, by = get_bangla_date_details(d, m, y, 2)
-    print(f"{'Bangla (BD 2019-Pres)':<23}: {bd} {bm} {by} BS")
-    bd, bm, by = get_bangla_date_details(d, m, y, 3)
-    print(f"{'Bangla (India Trad)':<23}: {bd} {bm} {by} BS")
-    bd, bm, by = get_bangla_date_details(d, m, y, 4)
-    print(f"{'Bangla (India Saha)':<23}: {bd} {bm} {by} BS")
+    labels = [
+        'Bangla (BD 1987-2018)', 
+        'Bangla (BD 2019-Pres)',
+        'Bangla (India Trad)', 
+        'Bangla (India Saha)'
+    ]
+    for v, label in enumerate(labels, start=1):
+        bd, bm, by = get_bangla_date_details(d, m, y, v)
+        print(f"{label:<23}: {bd} {bm} {by} BS")
     print("=========================================================")
 
-def convert_bangla_to_gregorian():
+def convert_bangla_to_gregorian() -> None:
+    """CLI prompt for Bangla to Gregorian conversion."""
     print("\nEnter Bangla Date & Version (Day Month Year [Version 1-4]):")
     print("(e.g., 23 2 1480 2) > ", end="")
     
@@ -281,15 +342,15 @@ def convert_bangla_to_gregorian():
         return
 
     gd, gm, gy = bangla_to_gregorian(bd, bm - 1, by, ver)
-    m_names = ["", "January", "February", "March", "April", "May", "June",
-               "July", "August", "September", "October", "November", "December"]
+    m_names = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
     print("\n================ DATE CONVERSION RESULTS ================")
     print(f"{'Gregorian Date':<23}: {gd} {m_names[gm]} {gy}")
     print(f"{'Day of Week':<23}: {get_day_of_week(gd, gm, gy)}")
     print("=========================================================")
 
-def run_merged_conversion_menu():
+def run_merged_conversion_menu() -> None:
+    """Menu for choosing direction of date conversion."""
     print("\n--- Date Conversion Options ---")
     print("2.1 Gregorian -> Bangla")
     print("2.2 Bangla -> Gregorian")
@@ -302,7 +363,8 @@ def run_merged_conversion_menu():
     else:
         print("Invalid Selection.")
 
-def run_age_calculator_option():
+def run_age_calculator_option() -> None:
+    """CLI prompt for age and date difference calculations."""
     print("\n--- Age / Date Difference Calculator ---")
     try:
         print("Enter first date  (DD MM YYYY) [e.g. birth]: ", end="")
@@ -325,7 +387,8 @@ def run_age_calculator_option():
     print(f"\nExact difference: {years} years, {months} months, {days} days")
     print(f"Total days      : {total_days} days")
 
-def run_add_subtract_days_option():
+def run_add_subtract_days_option() -> None:
+    """CLI prompt for adding or subtracting days."""
     print("\n--- Add / Subtract Days ---")
     try:
         print("Enter starting Gregorian date (DD MM YYYY): ", end="")
@@ -340,8 +403,7 @@ def run_add_subtract_days_option():
         return
 
     nd, nm, ny = add_days_to_date(d, m, y, delta)
-    m_names = ["", "January", "February", "March", "April", "May", "June",
-               "July", "August", "September", "October", "November", "December"]
+    m_names = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
     print(f"\nResult Gregorian : {nd} {m_names[nm]} {ny}")
     print(f"Day of Week      : {get_day_of_week(nd, nm, ny)}")
@@ -349,7 +411,8 @@ def run_add_subtract_days_option():
     bd, bm, by = get_bangla_date_details(nd, nm, ny, 2)
     print(f"Bangla (BD 2019+): {bd} {bm} {by} BS")
 
-def run_year_calendar_option():
+def run_year_calendar_option() -> None:
+    """CLI prompt for generating year calendars."""
     print("\n--- Year-Calendar Options ---")
     print("1.1 Enter Bangla Year  -> Show Bangla Year Calendar")
     print("1.2 Enter English Year -> Show Bangla Year Calendar")
@@ -365,85 +428,52 @@ def run_year_calendar_option():
 
     if sub_opt == "1.1":
         print(f"\nGenerating Bangla Calendar for {input_year} BS (Bangladesh Modern 2019 Rules):")
-        for m in range(12): print_bangla_month_grid(m, input_year, 2)
+        for m in range(12):
+            print_bangla_month_grid(m, input_year, 2)
     elif sub_opt == "1.2":
         converted_bangla_year = input_year - 593
         print(f"\nEnglish Year {input_year} maps primarily to Bangla Year {converted_bangla_year} BS.")
-        for m in range(12): print_bangla_month_grid(m, converted_bangla_year, 2)
+        for m in range(12):
+            print_bangla_month_grid(m, converted_bangla_year, 2)
     elif sub_opt == "1.3":
         converted_gregorian_year = input_year + 593
         print(f"\nBangla Year {input_year} BS intersects heavily with English Year {converted_gregorian_year}.")
-        for m in range(1, 13): print_english_month_grid(m, converted_gregorian_year)
+        for m in range(1, 13):
+            print_english_month_grid(m, converted_gregorian_year)
     elif sub_opt == "1.4":
         print(f"\nGenerating English Year Calendar for {input_year}:")
-        for m in range(1, 13): print_english_month_grid(m, input_year)
+        for m in range(1, 13):
+            print_english_month_grid(m, input_year)
     else:
         print("Invalid Sub-option choice.")
 
-
-# ==========================================
-# NATIVE LOCAL HTTP API SERVER HANDLER
-# ==========================================
-class CalendarAPIHandler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == "/today" or self.path == "/":
-            now = datetime.now()
-            d, m, y = now.day, now.month, now.year
-            
-            bd, bm, by = get_bangla_date_details(d, m, y, 2)
-            day_of_week = get_day_of_week(d, m, y)
-            
-            response = {
-                "gregorian": f"{d:02d}-{m:02d}-{y}",
-                "bengali": f"{bd:02d} {bm}, {by} BS",
-                "day_of_week": day_of_week
-            }
-            
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(response).encode("utf-8"))
-        else:
-            self.send_response(404)
-            self.end_headers()
-            self.wfile.write(b"Endpoint not found. Use /today")
-
-def run_native_server():
-    server_address = ("127.0.0.1", 8000)
-    httpd = HTTPServer(server_address, CalendarAPIHandler)
-    print("Native Local API running at http://127.0.0.1:8000/today")
-    httpd.serve_forever()
-
-
 if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "server":
-        run_native_server()
-    else:
-        while True:
-            print("\n=========================================================")
-            print("         Bengali - English Calendar Conversion System")
-            print("=========================================================")
-            print("1. Year-Calendar Generator")
-            print("2. Date Conversion (Gregorian <-> Bangla)")
-            print("3. Age / Date Difference Calculator")
-            print("4. Add / Subtract Days from a Date")
-            print("5. Exit System")
-            
-            try:
-                choice = int(input("Choose Option: "))
-            except ValueError:
-                print("Invalid input. Please enter a number.")
-                continue
+    while True:
+        print("\n=========================================================")
+        print("         Bengali - English Calendar Conversion System")
+        print("=========================================================")
+        print("1. Year-Calendar Generator")
+        print("2. Date Conversion (Gregorian <-> Bangla)")
+        print("3. Age / Date Difference Calculator")
+        print("4. Add / Subtract Days from a Date")
+        print("5. Exit System")
+        
+        try:
+            choice = int(input("Choose Option: "))
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            continue
 
-            if choice == 1:
-                run_year_calendar_option()
-            elif choice == 2:
-                run_merged_conversion_menu()
-            elif choice == 3:
-                run_age_calculator_option()
-            elif choice == 4:
-                run_add_subtract_days_option()
-            elif choice == 5:
-                break
-            else:
-                print("Invalid Option. Try again.")
+        if choice == 1:
+            run_year_calendar_option()
+        elif choice == 2:
+            run_merged_conversion_menu()
+        elif choice == 3:
+            run_age_calculator_option()
+        elif choice == 4:
+            run_add_subtract_days_option()
+        elif choice == 5:
+            print("Exiting system. Goodbye!")
+            break
+        else:
+            print("Invalid Option. Try again.")
